@@ -16,6 +16,8 @@ node_modules/
 dist/
 coverage/
 *.local
+*.tsbuildinfo
+.vite/
 
 # Environment / secrets — NEVER commit
 .env
@@ -23,16 +25,40 @@ coverage/
 !.env.example
 *.pem
 *.key
+*.secret
+*.credentials
 
 # Database / local data
 data/documents/*
 !data/documents/.gitkeep
+data/chroma/
+data/vectors/
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+
+# Logs
 *.log
 logs/
+/logs_*.txt
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Merge / patch leftovers
+*.bak
+*.orig
+*.rej
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
+ehthumbs.db
 
 # Alembic
 backend/alembic/versions/__pycache__/
