@@ -1,0 +1,3 @@
+Uploaded documents are not stored on disk in v1 (ingested directly into
+PostgreSQL with embeddings). This directory is reserved for sample documents
+used in manual testing.

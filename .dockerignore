@@ -1,0 +1,32 @@
+# --- VCS / metadata -----------------------------------------------------------
+.git
+.gitignore
+README.md
+SECURITY.md
+
+# --- Environments / secrets (never baked into images) --------------------------
+.env
+.env.*
+!.env.example
+
+# --- Python --------------------------------------------------------------------
+**/__pycache__/
+**/*.py[cod]
+backend/.venv/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+
+# --- Node ----------------------------------------------------------------------
+frontend/node_modules/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
+
+# --- Local artifacts not needed inside images -----------------------------------
+logs/
+logs_backend.txt
+data/
+docs/
+scripts/
+.DS_Store
+Thumbs.db

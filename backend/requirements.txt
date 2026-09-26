@@ -1,0 +1,37 @@
+# Core
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.12.4
+pydantic-settings==2.7.1
+python-multipart==0.0.20
+email-validator==2.2.0
+
+# Database
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.31.0
+pgvector==0.3.6
+alembic==1.14.0
+
+# HTTP / LLM
+httpx==0.28.1
+
+# Auth
+pyjwt==2.10.1
+
+# Document processing
+pymupdf==1.28.2
+python-docx==1.1.2
+
+# Embeddings (heavy: torch dependency — install separately if needed:
+#   pip install sentence-transformers==3.3.1
+# The API starts without it; /health reports embedding_model as unavailable.)
+sentence-transformers==3.3.1
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.25.2
+
+# NOTE on pins: pydantic/asyncpg/pymupdf were raised above the originally
+# planned versions because Python 3.14 (local dev machine) has no prebuilt
+# wheels for the older releases. The Docker image uses Python 3.12 and works
+# with these same versions.

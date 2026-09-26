@@ -1,0 +1,87 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: gateway
+      POSTGRES_PASSWORD: gateway
+      POSTGRES_DB: ai_security_gateway
+    ports:
+      # 5433 on the host: avoids clashing with a locally installed PostgreSQL
+      # service that may already occupy 5432 (common on dev laptops).
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gateway -d ai_security_gateway"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+      args:
+        # Optional build-time proxy for constrained networks (VPN breaks direct
+        # container egress). Start the helper on the host first:
+        #   python scripts/dev_proxy.py
+        #   DOCKER_BUILD_PROXY=http://host.docker.internal:3128 docker compose build
+        HTTP_PROXY: ${DOCKER_BUILD_PROXY:-}
+        HTTPS_PROXY: ${DOCKER_BUILD_PROXY:-}
+        http_proxy: ${DOCKER_BUILD_PROXY:-}
+        https_proxy: ${DOCKER_BUILD_PROXY:-}
+        NO_PROXY: localhost,127.0.0.1,postgres,backend,frontend
+        no_proxy: localhost,127.0.0.1,postgres,backend,frontend
+        # true = include sentence-transformers/torch in the image (multi-GB)
+        FULL_EMBEDDINGS: ${FULL_EMBEDDINGS:-false}
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://gateway:gateway@postgres:5432/ai_security_gateway
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "alembic upgrade head &&
+             python -m app.bootstrap &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend
+      args:
+        HTTP_PROXY: ${DOCKER_BUILD_PROXY:-}
+        HTTPS_PROXY: ${DOCKER_BUILD_PROXY:-}
+        http_proxy: ${DOCKER_BUILD_PROXY:-}
+        https_proxy: ${DOCKER_BUILD_PROXY:-}
+        NO_PROXY: localhost,127.0.0.1,backend,frontend
+        no_proxy: localhost,127.0.0.1,backend,frontend
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+  # Option B: Ollama inside Docker (GPU/CPU passthrough config required).
+  # Start with: docker compose --profile ollama up -d
+  # Option A (default, recommended on laptops): install Ollama on the host from
+  # https://ollama.com — the backend reaches it via host.docker.internal.
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+
+volumes:
+  pgdata:
+  ollama_models:
