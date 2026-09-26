@@ -4,7 +4,11 @@
 import type { ApiError } from '../services/api'
 
 export function Loading({ label = 'Loading…' }: { label?: string }) {
-  return <div className="state state-loading">{label}</div>
+  return (
+    <div className="state state-loading">
+      <span className="spinner" /> {label}
+    </div>
+  )
 }
 
 export function Processing({ label = 'Processing…' }: { label?: string }) {
@@ -15,8 +19,13 @@ export function Processing({ label = 'Processing…' }: { label?: string }) {
   )
 }
 
-export function EmptyState({ message = 'No data' }: { message?: string }) {
-  return <div className="state state-empty">{message}</div>
+export function EmptyState({ message = 'No data', hint }: { message?: string; hint?: string }) {
+  return (
+    <div className="state state-empty">
+      <div>{message}</div>
+      {hint && <div className="muted" style={{ marginTop: 6 }}>{hint}</div>}
+    </div>
+  )
 }
 
 export function Unavailable({ message = 'Component unavailable' }: { message?: string }) {

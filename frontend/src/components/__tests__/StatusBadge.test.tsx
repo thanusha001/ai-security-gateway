@@ -5,11 +5,11 @@ import { EmptyState, ErrorState, Unavailable } from '../StateViews'
 import { ApiError } from '../../services/api'
 
 describe('StatusBadge', () => {
-  it('renders BLOCK in red', () => {
+  it('renders BLOCK with the danger tone', () => {
     render(<StatusBadge value="BLOCK" />)
     const badge = screen.getByText('BLOCK')
     expect(badge).toBeInTheDocument()
-    expect(badge).toHaveStyle({ backgroundColor: '#dc2626' })
+    expect(badge).toHaveClass('badge-bad')
   })
 
   it('renders a dash for missing values', () => {
@@ -17,9 +17,16 @@ describe('StatusBadge', () => {
     expect(screen.getByText('—')).toBeInTheDocument()
   })
 
-  it('renders unknown values in grey', () => {
+  it('renders unknown values in the neutral tone', () => {
     render(<StatusBadge value="SOMETHING_NEW" />)
-    expect(screen.getByText('SOMETHING_NEW')).toBeInTheDocument()
+    const badge = screen.getByText('SOMETHING_NEW')
+    expect(badge).toBeInTheDocument()
+    expect(badge).toHaveClass('badge-neutral')
+  })
+
+  it('renders ALLOW with the positive tone', () => {
+    render(<StatusBadge value="ALLOW" />)
+    expect(screen.getByText('ALLOW')).toHaveClass('badge-ok')
   })
 })
 

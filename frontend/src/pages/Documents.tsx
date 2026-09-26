@@ -4,13 +4,15 @@ import type { ChunkInfo, DocumentInfo } from '../types'
 import { EmptyState, ErrorState, Loading } from '../components/StateViews'
 import { StatusBadge } from '../components/StatusBadge'
 import { useAuth } from '../hooks/useAuth'
+import { IconUpload } from '../components/icons'
 
 export function DocumentsPage() {
   const { user } = useAuth()
   const [docs, setDocs] = useState<DocumentInfo[] | null>(null)
   const [error, setError] = useState<ApiError | Error | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [uploadResult, setUploadResult] = useState<string | null>(null)
+  const [uploadResult, setUploadResult] = useState<{ ok: boolean; text: string } | null>(null)
+  const [dragging, setDragging] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const canUpload = user?.role === 'ADMIN' || user?.role === 'USER'
 
@@ -33,38 +35,87 @@ export function DocumentsPage() {
         status: string
         detail: string
       }>('/documents/upload', file)
-      setUploadResult(`${res.status}: ${res.detail}`)
+      setUploadResult({ ok: res.status !== 'FAILED', text: `${res.status}: ${res.detail}` })
       await load()
     } catch (e) {
-      setUploadResult(`Upload failed: ${(e as ApiError).message}`)
+      setUploadResult({ ok: false, text: `Upload failed: ${(e as ApiError).message}` })
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
     }
   }
 
+  if (!canUpload) {
+    return (
+      <div>
+        <div className="page-header">
+          <div>
+            <span className="kicker">Knowledge</span>
+            <h2>Documents</h2>
+          </div>
+        </div>
+        <ErrorState error={new Error('Your role does not have access to document management.')} />
+      </div>
+    )
+  }
+
   return (
     <div>
       <div className="page-header">
-        <h2>Documents</h2>
-        {canUpload && (
-          <label className="upload-button">
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".pdf,.docx,.txt,.md"
-              disabled={uploading}
-              onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
-            />
-            {uploading ? 'Uploading & scanning…' : 'Upload document (PDF/DOCX/TXT/MD)'}
-          </label>
-        )}
+        <div>
+          <span className="kicker">Knowledge</span>
+          <h2>Documents</h2>
+          <p className="page-sub">
+            Uploads are content-sniffed, chunked, security-scanned per chunk, and deduplicated by
+            SHA-256 before entering retrieval.
+          </p>
+        </div>
       </div>
 
-      {uploadResult && <div className="notice">{uploadResult}</div>}
+      {canUpload && (
+        <div
+          className={`upload-zone${dragging ? ' dragover' : ''}`}
+          onClick={() => fileRef.current?.click()}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragging(true)
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDragging(false)
+            const f = e.dataTransfer.files?.[0]
+            if (f) handleUpload(f)
+          }}
+          role="button"
+          aria-label="Upload document"
+        >
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".pdf,.docx,.txt,.md"
+            disabled={uploading}
+            onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
+          />
+          <div className="uz-icon">{uploading ? <span className="spinner" /> : <IconUpload size={18} />}</div>
+          <div className="uz-title">
+            {uploading ? 'Uploading & scanning…' : 'Drop a document here, or click to browse'}
+          </div>
+          <div className="uz-hint">PDF · DOCX · TXT · MD — scanned on ingest, deduped by hash</div>
+        </div>
+      )}
+
+      {uploadResult && (
+        <div className={`notice${uploadResult.ok ? '' : ' is-error'}`}>{uploadResult.text}</div>
+      )}
       {error && <ErrorState error={error} />}
       {!error && docs == null && <Loading />}
-      {docs != null && docs.length === 0 && <EmptyState message="No documents uploaded yet" />}
+      {docs != null && docs.length === 0 && (
+        <EmptyState
+          message="No documents yet"
+          hint="Upload a PDF, DOCX, TXT or MD file to build the knowledge base."
+        />
+      )}
 
       {docs != null && docs.length > 0 && (
         <table className="table">
@@ -77,7 +128,7 @@ export function DocumentsPage() {
               <th>Trust</th>
               <th>Risk</th>
               <th>Status</th>
-              <th>Hash (first 12)</th>
+              <th>Hash</th>
               <th></th>
             </tr>
           </thead>
@@ -111,7 +162,7 @@ function DocumentRow({ doc }: { doc: DocumentInfo }) {
   return (
     <>
       <tr className="expandable" onClick={toggle}>
-        <td>{doc.filename}</td>
+        <td style={{ fontWeight: 600 }}>{doc.filename}</td>
         <td>{doc.file_type}</td>
         <td>{(doc.file_size / 1024).toFixed(1)} KB</td>
         <td>{doc.chunk_count}</td>

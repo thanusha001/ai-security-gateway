@@ -18,7 +18,7 @@ const PIPELINE_STAGES = [
   'FINAL_DECISION',
 ] as const
 
-// Map granular stage events onto the 10 display rows (spec §33).
+// Map granular stage events onto the 9 display rows (spec §33).
 function stageProgress(events: PipelineEvent[]): Map<string, { state: string; ms?: number }> {
   const map = new Map<string, { state: string; ms?: number }>()
   for (const e of events) {
@@ -64,9 +64,13 @@ export function Requests() {
     return () => clearInterval(timer)
   }, [user])
 
-  // SSE live pipeline; the UI falls back to polling the request list (above).
+  // SSE live pipeline. EventSource cannot send Authorization headers, so the
+  // JWT travels as a ?token= query parameter (validated server-side the same
+  // way). Falls back to polling the request list (above) when disconnected.
   useEffect(() => {
-    const es = new EventSource('/api/v1/stream')
+    const token = localStorage.getItem('gateway_token')
+    if (!token) return
+    const es = new EventSource(`/api/v1/stream?token=${encodeURIComponent(token)}`)
     esRef.current = es
     es.onopen = () => setConnected(true)
     es.onmessage = (msg) => {
@@ -92,34 +96,74 @@ export function Requests() {
   return (
     <div>
       <div className="page-header">
-        <h2>Live Requests</h2>
+        <div>
+          <span className="kicker">Monitor</span>
+          <h2>Live Requests</h2>
+        </div>
         <span className={`sse-badge ${connected ? 'on' : 'off'}`}>
-          {connected ? '● live' : '○ polling fallback'}
+          {connected ? '● streaming' : '○ polling fallback'}
         </span>
       </div>
 
-      <section className="panel">
-        <h3>Pipeline {latestRequestId ? `— ${latestRequestId.slice(0, 12)}…` : ''}</h3>
-        {latestRequestId == null ? (
-          <EmptyState message="Submit a chat request to see the live pipeline" />
-        ) : (
-          <div className="pipeline">
-            {PIPELINE_STAGES.map((stage) => {
-              const p = progress.get(stage)
+      <div className="panels">
+        <section className="panel">
+          <h3>Pipeline {latestRequestId ? `— ${latestRequestId.slice(0, 12)}…` : ''}</h3>
+          {latestRequestId == null ? (
+            <EmptyState
+              message="Waiting for live traffic"
+              hint="Submit a request from the Gateway Console to watch the pipeline light up."
+            />
+          ) : (
+            <div className="pipeline">
+              {PIPELINE_STAGES.map((stage) => {
+                const p = progress.get(stage)
+                return (
+                  <div key={stage} className={`pipeline-row ${p?.state ?? 'pending'}`}>
+                    <span className="pipeline-marker">
+                      {p?.state === 'done' ? '✓' : p?.state === 'running' ? '●' : '·'}
+                    </span>
+                    <span className="pipeline-name">{stage}</span>
+                    <span className="pipeline-ms">
+                      {p?.ms != null ? `${p.ms.toFixed(1)} ms` : p?.state === 'running' ? 'running…' : 'pending'}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="panel">
+          <h3>Throughput</h3>
+          {requests == null ? (
+            <Loading />
+          ) : requests.length === 0 ? (
+            <EmptyState message="No requests recorded" />
+          ) : (
+            (() => {
+              const allowed = requests.filter((r) => r.final_decision === 'ALLOW').length
+              const flagged = requests.length - allowed
+              const pct = (n: number) => `${Math.round((n / requests.length) * 100)}%`
               return (
-                <div key={stage} className={`pipeline-row ${p?.state ?? 'pending'}`}>
-                  <span className="pipeline-marker">{p?.state === 'done' ? '✓' : p?.state === 'running' ? '●' : '○'}</span>
-                  <span className="pipeline-name">{stage}</span>
-                  <span className="pipeline-ms">{p?.ms != null ? `${p.ms.toFixed(1)} ms` : p?.state === 'running' ? 'running' : 'pending'}</span>
+                <div>
+                  <div className="kv-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                    <div><strong>{requests.length}</strong> recent requests</div>
+                    <div><strong>{pct(allowed)}</strong> allowed · <strong>{pct(flagged)}</strong> flagged</div>
+                  </div>
+                  <div style={{ display: 'flex', height: 10, borderRadius: 99, overflow: 'hidden', border: '1px solid var(--line)' }}>
+                    <div style={{ flex: allowed, background: 'var(--accent)' }} />
+                    <div style={{ flex: Math.max(flagged, 0.02), background: 'var(--bad)' }} />
+                  </div>
+                  <p className="muted">Last {requests.length} requests, newest first (table below).</p>
                 </div>
               )
-            })}
-          </div>
-        )}
-      </section>
+            })()
+          )}
+        </section>
+      </div>
 
       <section className="panel">
-        <h3>Recent Requests</h3>
+        <h3>Recent requests</h3>
         {error ? <ErrorState error={error} /> : requests == null ? (
           <Loading />
         ) : requests.length === 0 ? (
@@ -144,11 +188,16 @@ export function Requests() {
                     <Link to={`/requests/${r.request_id}`} className="mono">
                       {r.request_id.slice(0, 12)}…
                     </Link>
+                    <div className="muted" style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {r.input_preview}
+                    </div>
                   </td>
                   <td><StatusBadge value={r.final_decision ?? r.status} /></td>
-                  <td>{r.risk_score.toFixed(2)}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{r.risk_score.toFixed(2)}</td>
                   <td><StatusBadge value={r.risk_level} /></td>
-                  <td>{r.total_latency_ms != null ? `${Math.round(r.total_latency_ms)} ms` : '—'}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {r.total_latency_ms != null ? `${Math.round(r.total_latency_ms)} ms` : '—'}
+                  </td>
                   <td>{r.policy_version ?? '—'}</td>
                   <td>{new Date(r.created_at).toLocaleTimeString()}</td>
                 </tr>

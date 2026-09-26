@@ -27,18 +27,22 @@ export function SecurityEventsPage() {
   return (
     <div>
       <div className="page-header">
-        <h2>Security Events</h2>
+        <div>
+          <span className="kicker">Security</span>
+          <h2>Security Events</h2>
+        </div>
         <div className="filters">
-          <select value={severity} onChange={(e) => setSeverity(e.target.value)}>
+          <select value={severity} onChange={(e) => setSeverity(e.target.value)} aria-label="Severity filter">
             <option value="">All severities</option>
             {['low', 'medium', 'high', 'critical'].map((s) => (
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
           <input
-            placeholder="filter by detector…"
+            placeholder="Filter by detector…"
             value={detector}
             onChange={(e) => setDetector(e.target.value)}
+            aria-label="Detector filter"
           />
         </div>
       </div>
@@ -62,18 +66,18 @@ export function SecurityEventsPage() {
           <tbody>
             {events.map((e, i) => (
               <tr key={e.id ?? i}>
-                <td>{e.created_at ? new Date(e.created_at).toLocaleString() : '—'}</td>
+                <td style={{ whiteSpace: 'nowrap' }}>{e.created_at ? new Date(e.created_at).toLocaleString() : '—'}</td>
                 <td>
                   <Link to={`/requests/${e.request_id}`} className="mono">
                     {e.request_id.slice(0, 10)}…
                   </Link>
                 </td>
-                <td>{e.stage}</td>
+                <td className="mono">{e.stage}</td>
                 <td>{e.detector ?? '—'}</td>
                 <td>{e.severity ? <StatusBadge value={e.severity} /> : '—'}</td>
-                <td>{e.risk_score?.toFixed(2) ?? '—'}</td>
+                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{e.risk_score?.toFixed(2) ?? '—'}</td>
                 <td>{e.action ? <StatusBadge value={e.action} /> : '—'}</td>
-                <td className="reason-cell">{e.reason ?? '—'}</td>
+                <td className="reason-cell" title={e.reason ?? ''}>{e.reason ?? '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -101,7 +105,11 @@ export function ThreatsPage() {
   return (
     <div>
       <div className="page-header">
-        <h2>Threat Detections</h2>
+        <div>
+          <span className="kicker">Security</span>
+          <h2>Threat Detections</h2>
+          <p className="page-sub">Correlated detections raised by the security pipeline.</p>
+        </div>
       </div>
       <table className="table">
         <thead>
@@ -119,18 +127,18 @@ export function ThreatsPage() {
         <tbody>
           {threats.map((t, i) => (
             <tr key={i}>
-              <td>{t.created_at ? new Date(t.created_at).toLocaleString() : '—'}</td>
+              <td style={{ whiteSpace: 'nowrap' }}>{t.created_at ? new Date(t.created_at).toLocaleString() : '—'}</td>
               <td>
                 <Link to={`/requests/${t.request_id}`} className="mono">
                   {t.request_id.slice(0, 10)}…
                 </Link>
               </td>
-              <td>{t.threat_type}</td>
+              <td style={{ fontWeight: 600 }}>{t.threat_type}</td>
               <td>{t.detector}</td>
               <td><StatusBadge value={t.severity} /></td>
-              <td>{t.confidence.toFixed(2)}</td>
-              <td>{t.risk_score.toFixed(2)}</td>
-              <td className="mono reason-cell">
+              <td style={{ fontVariantNumeric: 'tabular-nums' }}>{t.confidence.toFixed(2)}</td>
+              <td style={{ fontVariantNumeric: 'tabular-nums' }}>{t.risk_score.toFixed(2)}</td>
+              <td className="mono reason-cell" title={Array.isArray(t.evidence?.evidence) ? (t.evidence!.evidence as string[]).join('; ') : ''}>
                 {Array.isArray(t.evidence?.evidence) ? (t.evidence!.evidence as string[]).join('; ') : '—'}
               </td>
             </tr>

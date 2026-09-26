@@ -51,10 +51,17 @@ def _publish(event: dict[str, Any]) -> None:
 
 
 async def _persist_event(db: AsyncSession, **kwargs: Any) -> None:
-    """Persist a security event; failures are logged, not raised (fail-open)."""
+    """Persist a security event; failures are logged, not raised (fail-open).
+
+    The insert runs inside a SAVEPOINT (begin_nested): if the flush fails, only
+    the savepoint rolls back and the outer transaction stays usable. Without
+    this, one bad insert poisons the session and every later statement fails
+    with PendingRollbackError (observed as spurious "Policy store unavailable"
+    503s)."""
     try:
-        db.add(SecurityEvent(**kwargs))
-        await db.flush()
+        async with db.begin_nested():
+            db.add(SecurityEvent(**kwargs))
+            await db.flush()
     except Exception:
         log.exception("security_event_persist_failed")
 

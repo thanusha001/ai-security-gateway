@@ -22,7 +22,7 @@ export function PoliciesPage() {
   const isAdmin = user?.role === 'ADMIN'
   const [policies, setPolicies] = useState<PolicyInfo[] | null>(null)
   const [error, setError] = useState<ApiError | Error | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null)
   const [creating, setCreating] = useState(false)
 
   const load = () =>
@@ -39,10 +39,10 @@ export function PoliciesPage() {
     setNotice(null)
     try {
       await api.post(`/policies/${p.id}/${deactivate ? 'deactivate' : 'activate'}`)
-      setNotice(`Policy ${p.name} v${p.version} ${deactivate ? 'deactivated' : 'activated'}`)
+      setNotice({ ok: true, text: `Policy ${p.name} v${p.version} ${deactivate ? 'deactivated' : 'activated'}` })
       await load()
     } catch (e) {
-      setNotice(`Failed: ${(e as ApiError).message}`)
+      setNotice({ ok: false, text: `Failed: ${(e as ApiError).message}` })
     }
   }
 
@@ -52,28 +52,37 @@ export function PoliciesPage() {
   return (
     <div>
       <div className="page-header">
-        <h2>Security Policies</h2>
+        <div>
+          <span className="kicker">Security</span>
+          <h2>Policies</h2>
+          <p className="page-sub">Versioned rule sets evaluated on every request. One policy is active at a time.</p>
+        </div>
         {isAdmin && (
-          <button onClick={() => setCreating(!creating)}>
-            {creating ? 'Cancel' : 'New policy'}
-          </button>
+          <div className="filters">
+            <button className={creating ? '' : 'btn-primary'} onClick={() => setCreating(!creating)}>
+              {creating ? 'Cancel' : 'New policy'}
+            </button>
+          </div>
         )}
       </div>
 
-      {notice && <div className="notice">{notice}</div>}
+      {notice && <div className={`notice${notice.ok ? '' : ' is-error'}`}>{notice.text}</div>}
 
       {creating && isAdmin && (
         <PolicyEditor
           onDone={(msg) => {
             setCreating(false)
-            setNotice(msg)
+            setNotice({ ok: true, text: msg })
             load()
           }}
         />
       )}
 
       {policies.length === 0 ? (
-        <EmptyState message="No policies defined (gateway falls back to built-in defaults)" />
+        <EmptyState
+          message="No policies defined"
+          hint="The gateway falls back to built-in defaults until a policy is created and activated."
+        />
       ) : (
         <table className="table">
           <thead>
@@ -89,15 +98,15 @@ export function PoliciesPage() {
           <tbody>
             {policies.map((p) => (
               <tr key={p.id}>
-                <td>{p.name}</td>
-                <td>v{p.version}</td>
-                <td>{p.is_active ? <StatusBadge value="ACTIVE" /> : 'inactive'}</td>
+                <td style={{ fontWeight: 600 }}>{p.name}</td>
+                <td className="mono">v{p.version}</td>
+                <td>{p.is_active ? <StatusBadge value="ACTIVE" /> : <span className="muted">inactive</span>}</td>
                 <td>{Object.keys(p.configuration.rules).length} rules</td>
-                <td>{p.updated_at ? new Date(p.updated_at).toLocaleString() : '—'}</td>
+                <td style={{ whiteSpace: 'nowrap' }}>{p.updated_at ? new Date(p.updated_at).toLocaleString() : '—'}</td>
                 {isAdmin && (
                   <td>
                     {p.is_active ? (
-                      <button onClick={() => activate(p, true)}>Deactivate</button>
+                      <button className="btn-ghost" onClick={() => activate(p, true)}>Deactivate</button>
                     ) : (
                       <button onClick={() => activate(p)}>Activate</button>
                     )}
@@ -142,12 +151,14 @@ function PolicyEditor({ onDone }: { onDone: (message: string) => void }) {
 
   return (
     <section className="panel">
-      <h3>New Policy</h3>
-      {error && <div className="state state-error">{error}</div>}
-      <label>
-        Name{' '}
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="strict-policy" />
-      </label>
+      <h3>New policy</h3>
+      {error && <div className="state state-error" style={{ margin: '0 0 12px' }}>{error}</div>}
+      <div className="form-grid">
+        <label>
+          Name
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="strict-policy" />
+        </label>
+      </div>
       <table className="table inner">
         <thead>
           <tr>
@@ -194,15 +205,18 @@ function PolicyEditor({ onDone }: { onDone: (message: string) => void }) {
           ))}
         </tbody>
       </table>
-      <label>
+      <div className="check-row">
         <input
+          id="allow-suspicious"
           type="checkbox"
           checked={allowSuspicious}
           onChange={(e) => setAllowSuspicious(e.target.checked)}
-        />{' '}
-        allow SUSPICIOUS chunks into retrieval context (not recommended)
-      </label>
-      <button onClick={submit}>Create policy</button>
+        />
+        <label htmlFor="allow-suspicious">
+          Allow SUSPICIOUS chunks into retrieval context (not recommended)
+        </label>
+      </div>
+      <button className="btn-primary" onClick={submit}>Create policy</button>
     </section>
   )
 }

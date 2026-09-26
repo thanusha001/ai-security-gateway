@@ -14,26 +14,30 @@ export function LLMUsagePage() {
 
   if (error) return <ErrorState error={error} />
   if (!usage) return <Loading />
-  if (usage.models.length === 0) return <EmptyState message="No LLM calls recorded yet" />
+  if (usage.models.length === 0) return <EmptyState message="No LLM calls recorded yet" hint="Send a request from the Gateway Console." />
 
   return (
     <div>
       <div className="page-header">
-        <h2>LLM Usage</h2>
+        <div>
+          <span className="kicker">Platform</span>
+          <h2>LLM Usage</h2>
+          <p className="page-sub">Token accounting per model — exact counts come from the provider.</p>
+        </div>
       </div>
 
       <section className="panel">
         <h3>Token-count sources</h3>
-        <div className="kv-grid">
+        <div className="kv-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
           {Object.entries(usage.token_count_sources).map(([source, count]) => (
-            <div key={source}>
-              <StatusBadge value={source?.toUpperCase() ?? 'UNAVAILABLE'} /> {count} calls
+            <div key={source} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <StatusBadge value={source?.toUpperCase() ?? 'UNAVAILABLE'} />
+              <span>{count} calls</span>
             </div>
           ))}
         </div>
-        <p className="muted">
-          EXACT = provider-reported usage. ESTIMATED = heuristic (~4 chars/token) and never
-          presented as exact.
+        <p className="muted" style={{ marginBottom: 0 }}>
+          EXACT = provider-reported usage. ESTIMATED = heuristic (~4 chars/token) and never presented as exact.
         </p>
       </section>
 
@@ -48,21 +52,21 @@ export function LLMUsagePage() {
             <th>Output Tokens</th>
             <th>Total Tokens</th>
             <th>Avg Generation</th>
-            <th>Avg Tokens/sec</th>
+            <th>Avg Tokens/s</th>
           </tr>
         </thead>
         <tbody>
           {usage.models.map((m) => (
             <tr key={`${m.provider}-${m.model}`}>
-              <td>{m.model}</td>
+              <td style={{ fontWeight: 600 }}>{m.model}</td>
               <td>{m.provider}</td>
-              <td>{m.requests}</td>
-              <td>{m.failures}</td>
-              <td>{m.input_tokens.toLocaleString()}</td>
-              <td>{m.output_tokens.toLocaleString()}</td>
-              <td>{m.total_tokens.toLocaleString()}</td>
-              <td>{m.avg_generation_ms != null ? `${Math.round(m.avg_generation_ms)} ms` : '—'}</td>
-              <td>{m.avg_tokens_per_second?.toFixed(1) ?? '—'}</td>
+              <td style={{ fontVariantNumeric: 'tabular-nums' }}>{m.requests}</td>
+              <td style={{ fontVariantNumeric: 'tabular-nums' }}>{m.failures}</td>
+              <td style={{ fontVariantNumeric: 'tabular-nums' }}>{m.input_tokens.toLocaleString()}</td>
+              <td style={{ fontVariantNumeric: 'tabular-nums' }}>{m.output_tokens.toLocaleString()}</td>
+              <td style={{ fontVariantNumeric: 'tabular-nums' }}>{m.total_tokens.toLocaleString()}</td>
+              <td style={{ fontVariantNumeric: 'tabular-nums' }}>{m.avg_generation_ms != null ? `${Math.round(m.avg_generation_ms)} ms` : '—'}</td>
+              <td style={{ fontVariantNumeric: 'tabular-nums' }}>{m.avg_tokens_per_second?.toFixed(1) ?? '—'}</td>
             </tr>
           ))}
         </tbody>
@@ -89,12 +93,16 @@ export function AuditPage() {
   return (
     <div>
       <div className="page-header">
-        <h2>Audit Logs</h2>
+        <div>
+          <span className="kicker">Platform</span>
+          <h2>Audit Log</h2>
+        </div>
         <div className="filters">
           <input
-            placeholder="filter by action (login, policy_activate…)"
+            placeholder="Filter by action (login, policy_activate…)"
             value={action}
             onChange={(e) => setAction(e.target.value)}
+            aria-label="Action filter"
           />
         </div>
       </div>
@@ -112,12 +120,12 @@ export function AuditPage() {
         <tbody>
           {entries.map((a) => (
             <tr key={a.id}>
-              <td>{a.created_at ? new Date(a.created_at).toLocaleString() : '—'}</td>
+              <td style={{ whiteSpace: 'nowrap' }}>{a.created_at ? new Date(a.created_at).toLocaleString() : '—'}</td>
               <td>{a.user_id ?? '—'}</td>
-              <td>{a.action}</td>
+              <td style={{ fontWeight: 600 }}>{a.action}</td>
               <td>{a.resource_type ? `${a.resource_type}:${a.resource_id ?? ''}` : '—'}</td>
               <td className="mono">{a.request_id ?? '—'}</td>
-              <td className="reason-cell">
+              <td className="reason-cell mono" title={a.details ? JSON.stringify(a.details) : ''}>
                 {a.details ? JSON.stringify(a.details) : '—'}
               </td>
             </tr>
@@ -149,7 +157,10 @@ export function HealthPage() {
   return (
     <div>
       <div className="page-header">
-        <h2>System Health</h2>
+        <div>
+          <span className="kicker">Platform</span>
+          <h2>System Health</h2>
+        </div>
         <StatusBadge value={health.status} />
       </div>
       <div className="health-grid large">

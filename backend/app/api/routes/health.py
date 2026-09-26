@@ -21,6 +21,9 @@ async def _ollama_health() -> bool:
         return False
 
 
+# Served under /api/v1 (what the dashboard and nginx proxy call) and kept on
+# the bare path for ops curl checks (README / monitoring probes).
+@router.get("/api/v1/health")
 @router.get("/health")
 async def health() -> dict:
     db_ok = await check_database()

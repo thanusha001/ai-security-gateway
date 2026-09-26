@@ -79,6 +79,19 @@ async def get_current_user(
     return user
 
 
+async def get_user_or_401(db: AsyncSession, user_id: int) -> User:
+    """Shared helper: load an active user or raise 401 (used by header and
+    query-token auth paths)."""
+    result = await db.execute(select(User).where(User.id == user_id, User.is_active.is_(True)))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "AUTHENTICATION_FAILED", "message": "Unknown or inactive user"},
+        )
+    return user
+
+
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
@@ -97,3 +110,20 @@ def require_roles(*roles: Role):
 
 
 RequireAdmin = Depends(require_roles(Role.ADMIN))
+
+
+async def optional_user(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> User | None:
+    """Resolve a user from the bearer header, or None when absent/invalid.
+    Endpoints that accept alternative auth (e.g. SSE ?token=) use this and
+    enforce authorization themselves."""
+    if credentials is None:
+        return None
+    try:
+        payload = decode_token(credentials.credentials)
+    except HTTPException:
+        return None
+    result = await db.execute(select(User).where(User.id == int(payload.get("sub", 0)), User.is_active.is_(True)))
+    return result.scalar_one_or_none()

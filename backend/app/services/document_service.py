@@ -213,18 +213,28 @@ async def ingest_document(
         trust = round(1.0 - doc_max_risk, 3)
 
         # 9. embedding + persistence (only for chunks we keep; embed all statuses
-        #    except BLOCKED so SUSPICIOUS can be policy-included later)
+        #    except BLOCKED so SUSPICIOUS can be policy-included later).
+        #    Embedding is an enhancement, not a gate: when the model is missing
+        #    (EmbeddingError, e.g. sentence-transformers not installed) the
+        #    document is still stored with its security verdicts — it just
+        #    cannot be retrieved by vector search. This is the documented
+        #    degradation path (README: /health reports embedding_model:
+        #    unavailable); failing the whole upload turned a missing optional
+        #    dependency into data loss.
+        embedding_note = ""
         try:
             to_embed = [c.text for c in chunk_rows if c.security_status != "BLOCKED"]
             vectors = await embed_texts(to_embed) if to_embed else []
-        except EmbeddingError:
-            document.status = "FAILED"
-            raise
+        except EmbeddingError as exc:
+            log.warning("embedding_unavailable_stored_unindexed",
+                        document_id=document.document_id, error=str(exc))
+            vectors = []
+            embedding_note = " — stored without embeddings (embedding model unavailable)"
         vector_iter = iter(vectors)
         for row in chunk_rows:
             if row.security_status == "BLOCKED":
                 continue
-            row.embedding = next(vector_iter)
+            row.embedding = next(vector_iter, None)
 
         for row in chunk_rows:
             db.add(row)
@@ -249,7 +259,7 @@ async def ingest_document(
         return {
             "document_id": document.document_id,
             "status": doc_status,
-            "detail": f"Document processed with {len(chunk_rows)} chunks",
+            "detail": f"Document processed with {len(chunk_rows)} chunks{embedding_note}",
             "duplicate": False,
             "trust_score": trust,
             "risk_score": round(doc_max_risk, 3),

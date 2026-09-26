@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { ApiError } from '../services/api'
+import { IconLock } from '../components/icons'
 
 export function LoginPage() {
   const { login } = useAuth()
@@ -31,8 +32,23 @@ export function LoginPage() {
   return (
     <div className="login-page">
       <form className="login-card" onSubmit={submit}>
-        <h2>Sign in — AI Security Gateway</h2>
-        {error && <div className="state state-error" role="alert">{error}</div>}
+        <div className="login-brand">
+          <div className="brand-mark">
+            <IconLock size={18} />
+          </div>
+          <div>
+            <h2>Security Gateway</h2>
+            <span className="brand-sub">Operator access</span>
+          </div>
+        </div>
+
+        {error && (
+          <div className="state state-error" role="alert" style={{ margin: 0 }}>
+            <strong>Sign-in failed</strong>
+            <p>{error}</p>
+          </div>
+        )}
+
         <label>
           Email
           <input
@@ -40,6 +56,7 @@ export function LoginPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="username"
+            placeholder="you@company.com"
             required
           />
         </label>
@@ -50,15 +67,16 @@ export function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
+            placeholder="••••••••••••"
             required
           />
         </label>
-        <button type="submit" disabled={busy}>
+        <button type="submit" className="btn-primary" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
-        <p className="muted">
-          Default admin credentials come from ADMIN_EMAIL / ADMIN_PASSWORD at bootstrap
-          (see .env.example). Change them before any real use.
+        <p className="login-hint">
+          Credentials are provisioned at bootstrap via <span className="mono">ADMIN_EMAIL</span> /{' '}
+          <span className="mono">ADMIN_PASSWORD</span>. Change the defaults before any real use.
         </p>
       </form>
     </div>

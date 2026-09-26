@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.security import Role, require_roles
+from app.auth.security import Role, decode_token, optional_user, require_roles
 from app.database.models import (
     AuditLog,
     GatewayRequest,
@@ -20,7 +20,8 @@ from app.database.models import (
     SecurityEvent,
     ThreatDetection,
 )
-from app.database.session import get_db
+from app.database.models import User
+from app.database.session import SessionLocal, get_db
 from app.observability.events import bus
 
 router = APIRouter(prefix="/api/v1", tags=["observability"])
@@ -315,12 +316,41 @@ async def audit_logs(
     ]
 
 
+async def _user_from_stream_token(token: str) -> User:
+    """Resolve an EventSource ?token= query param the same way a bearer header
+    would. EventSource cannot send Authorization headers, so this is the only
+    way for the browser's native client to authenticate the stream."""
+    try:
+        payload = decode_token(token)
+    except HTTPException:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "AUTHENTICATION_FAILED", "message": "Invalid stream token"},
+        )
+    user_id = int(payload.get("sub", 0))
+    async with SessionLocal() as db:
+        return await get_user_or_401(db, user_id)
+
+
 @router.get("/stream")
 async def event_stream(
     request: Request,
-    user=Depends(require_roles(Role.ADMIN, Role.AUDITOR, Role.USER)),
+    token: str | None = None,
+    user: User | None = Depends(optional_user),
 ):
-    """SSE stream of live pipeline events; falls back to polling client-side."""
+    """SSE stream of live pipeline events.
+
+    Auth accepts either a bearer header or `?token=<jwt>`. The query-param path
+    exists because the browser's native EventSource cannot attach headers, and
+    the live-requests console uses EventSource. Both paths enforce role access
+    (ADMIN/AUDITOR/USER)."""
+    if token:
+        user = await _user_from_stream_token(token)
+    if user is None or user.role not in {Role.ADMIN.value, Role.AUDITOR.value, Role.USER.value}:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "AUTHENTICATION_FAILED", "message": "Missing stream token"},
+        )
 
     async def generator():
         queue = bus.subscribe()
